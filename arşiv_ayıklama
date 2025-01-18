@@ -1,0 +1,86 @@
+def extract_preferred_file_from_nested_gzip(zip_path, obs_id, output_dir):
+    """
+    Extracts a specific file from the preferred .gzip file (_drc > _drz) 
+    located inside a folder hierarchy in a .zip archive.
+
+    :param zip_path: Path to the outer .zip archive.
+    :param folder_hierarchy: Folder path inside the .zip archive where .gzip files are located.
+    :param target_file: File to extract from the .gzip archive.
+    :param output_dir: Directory where the extracted file will be saved.
+    """
+
+    folder_hierarchy = "/3-PRODUCT"
+    target_file = obs_id + ".fits"
+    
+    try:
+        # Step 1: Open the outer .zip file
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            # List all files in the folder hierarchy
+            files_in_folder = [name for name in zip_ref.namelist() if (folder_hierarchy in name) and name.endswith('.gz')]
+            print(files_in_folder)
+
+            if not files_in_folder:
+                print(f"No .gzip files found in '{folder_hierarchy}' inside the .zip archive.")
+                return
+
+            # Step 2: Prefer _drc files first, then _drz files
+            preferred_gzip = None
+            for file_name in files_in_folder:
+                if '_drc' in file_name:
+                    preferred_gzip = file_name
+                    break
+            if not preferred_gzip:
+                for file_name in files_in_folder:
+                    if '_drz' in file_name:
+                        preferred_gzip = file_name
+                        break
+            
+            # If no _drc or _drz file found, print an error
+            if not preferred_gzip:
+                print(f"No suitable .gzip file (_drc or _drz) found in '{folder_hierarchy}' inside the .zip archive.")
+                return
+
+            print(f"Using preferred gzip file: {preferred_gzip}")
+
+            # Extract the preferred .gzip file to a temporary location
+            temp_gzip_path = os.path.join(output_dir, os.path.basename(preferred_gzip))
+            zip_ref.extract(preferred_gzip, output_dir)
+
+            # Adjust the path to include the folder hierarchy
+            temp_gzip_path = os.path.join(output_dir, preferred_gzip)
+
+            # Step 3: Open the .gzip file
+            with gzip.open(temp_gzip_path, 'rb') as gzip_file:
+                # Read the contents of the .gzip file
+                content = gzip_file.read()
+
+                # Save the extracted content as the target file
+                target_file_path = os.path.join(output_dir, target_file)
+                with open(target_file_path, 'wb') as output_file:
+                    output_file.write(content)
+
+                print(f"File '{target_file}' extracted from '{preferred_gzip}' to '{output_dir}'.")
+
+            # Optionally, delete the temporary .gzip file
+            os.remove(temp_gzip_path)
+
+    except FileNotFoundError:
+        print(f"Archive '{zip_path}' not found.")
+    except zipfile.BadZipFile:
+        print(f"Error: '{zip_path}' is not a valid zip file.")
+    except gzip.BadGzipFile:
+        print(f"Error: Selected gzip file is not valid.")
+    except Exception as e:
+        print(f"An error occurred: {e}")      
+"""
+# Example usage
+zip_path = "outer_archive.zip"      # Path to the outer .zip file
+folder_hierarchy = "folder1/folder2"  # Folder hierarchy inside the .zip
+target_file = "extracted_file.txt"  # The file to extract from the .gzip
+output_dir = "./output"             # Directory to save the extracted file
+
+# Ensure the output directory exists
+os.makedirs(output_dir, exist_ok=True)
+
+extract_preferred_file_from_nested_gzip("C:\\Users\\hp\\Desktop\\04A\\Yeni klasör\\jbt191010.zip", "jbt191010", "C:\\Users\\hp\\Desktop\\04A\\Yeni klasör\\")
+"""
